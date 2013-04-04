@@ -1,0 +1,4 @@
+diarirc
+=======
+
+A IRC logger

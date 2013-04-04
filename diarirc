@@ -1,0 +1,65 @@
+#!/usr/bin/perl -w
+
+use strict;
+use POSIX qw(strftime);
+use Irssi;
+use ElasticSearch;
+use vars qw($VERSION %IRSSI);
+
+$VERSION = '0.01';
+%IRSSI = (
+    authors       => 'Yanis Guenane',
+    contact       => 'yguenane@gmail.com',
+    name          => 'diarirc',
+    descritption  => 'A Irssi plugin to feed http://www.diarirc.org',
+    license       => 'Apache V2',
+    url           => 'https://github.com/Spredzy/diariric'
+    );
+
+my $ES = ElasticSearch->new();
+
+
+sub on_public {
+  my ($server, $msg, $nick, $addr, $target) = @_;
+
+  $target =~ s/^#*//g;
+  my $day = strftime "%Y.%m.%d", localtime;
+  my $datetime = strftime "%Y-%m-%d %H:%M:%S", localtime;
+
+  my $msg_obj = {
+    'chan' => $target,
+    'node' => $server->{'tag'},
+    'nick' => $nick,
+    'message' => $msg,
+    'index_name' => "$server->{'tag'}-$target.$day",
+    'datetime' => $datetime,
+  };
+
+  my $res = $ES->index(
+      index => $msg_obj->{'index_name'},
+      type  => 'message',
+      data  => {
+      nick => $msg_obj->{'nick'},
+      message => $msg_obj->{'message'},
+      post_date => $msg_obj->{'datetime'},
+      },
+    );
+}
+
+sub own_public {
+  my ($server, $msg, $target) = @_;
+
+  $target =~ s/^#*//g;
+  my $day = strftime "%Y.%m.%d", localtime;
+  my %msg_obj = (
+    'chan' => $target,
+    'node' => $server->{'tag'},
+    'nick' => $server->{'nick'},
+    'message' => $msg,
+    'index_name' => "$server->{'tag'}-$target.$day",
+    'datetime' => scalar localtime,
+  );
+}
+
+Irssi::signal_add("message public", "on_public");
+Irssi::signal_add("message own_public", "own_public");

@@ -14,7 +14,7 @@ class Diarirc
     @es_server = es_server
     @channels = []
 
-    # Find a way to execute this ONLY IF index does not exist yet 
+    # Find a way to execute this ONLY IF index does not exist yet
     idx = ElasticSearch::Index.new(:channel, @es_server)
     doc = {:id => _generate_uuid, :name => 'root', :server => 'root', :creation_date => Time.now.to_i}
     idx.add(:channel, doc[:id], doc)
@@ -25,6 +25,7 @@ class Diarirc
 
   public
   def add(channel)
+
     idx = ElasticSearch::Index.new(:channel, @es_server)
     doc = {
       :id             => _generate_uuid,
@@ -34,10 +35,7 @@ class Diarirc
     }
     idx.add(:channel, doc[:id], doc)
     self.channels.push channel
-    pp 'BEING --'
-    pp channels
-    pp 'END ##'
-    
+
   end
 
   # include is overwriten
@@ -56,14 +54,7 @@ class Diarirc
   public
   def find(server, name)
 
-    pp server
-    pp name
-    pp '###'
-
     @channels.each do |channel|
-      pp channel.server
-      pp channel.name
-      pp '--'
       return channel if channel.name == name and channel.server == server
     end
     false
@@ -82,8 +73,6 @@ class Diarirc
 
     idx = ElasticSearch::Index.new(:channel, @es_server)
 
-
-
     query = {
       :query => {
         :field => {
@@ -99,7 +88,6 @@ class Diarirc
       server = chan['_source']['server']
       creation_date = chan['_source']['creation_date']
       new_chan = Channel.new(name, server, creation_date)
-      #pp chan
       @channels.push new_chan
     end
 

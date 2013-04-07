@@ -1,0 +1,7 @@
+<% channels.each do |channel| %>
+  Channel : <%= channel.name %></br><br/>
+  Indices :
+  <% channel.messages.each do |index| %>
+    <%= index %><br/>
+  <% end %><br/><hr/>
+<% end %>

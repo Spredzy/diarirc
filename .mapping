@@ -1,0 +1,26 @@
+#
+# server-chan-date/message index mapping
+#
+
+{
+  "message" : {
+    "properties" : {
+      "message" : {
+        "type" : "string"
+      },
+        "nick" : {
+          "type" : "string"
+        },
+        "chan" : {
+          "type" : "string"
+        },
+        "server" : {
+          "type" : "string"
+        },
+        "post_date" : {
+          "type" : "date"
+            "format" : "YYYY-MM-dd HH:mm:ss"
+        }
+    }
+  }
+}

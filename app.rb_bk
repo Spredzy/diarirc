@@ -1,0 +1,81 @@
+$:.unshift(File.expand_path(File.join(File.dirname(__FILE__), "lib")))
+
+require 'rubygems'
+require 'sinatra'
+require 'elasticsearch'
+require 'channel'
+
+#
+# Define variables
+#
+#
+url   = 'http://192.168.1.197:9200/'
+index = 'chann'
+es = ElasticSearch::Index.create(index, url)
+
+get '/' do
+  erb :home
+end
+
+post '/chan' do
+
+  chann = Channel.new(params[:chan], es)
+
+
+  # CHANGE : .create to check exist? first
+  if chann.exists?
+    redirect '/'
+  else
+    chann.create
+    "Saving #{params[:chan]}"
+  end
+
+end
+
+
+#
+# Get directly to the log page
+# of a specific channel
+#
+# If the channel does not exist
+# redirect to home page
+#
+get '/chan/:chan' do
+
+  chann = Channel.new(params[:chan], es)
+
+  if chann.exists?
+    chann.load_history
+  else
+    chann.create
+  end
+
+  erb :logs, :locals => {:chann => chann}
+
+end
+
+
+get '/list/chan' do
+
+    query = {
+      :query => {
+        :field => {
+          :name => '*',
+        }
+      }
+    }
+
+    res = es.search('chann', query)
+    channs = res['hits']['hits']
+
+    erb :list_chan, :locals => {:channs => channs}
+
+end
+
+get '/chan/:chan/logs' do
+
+  chann = Channel.new(params[:chan], es)
+
+  chann.logs
+
+end

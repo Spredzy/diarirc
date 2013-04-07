@@ -4,62 +4,181 @@ use strict;
 use POSIX qw(strftime);
 use Irssi;
 use ElasticSearch;
+use Data::Dumper;
 use vars qw($VERSION %IRSSI);
+use threads ('yield',
+		'stack_size' => 64*4096,
+		'exit' => 'threads_only',
+		'stringify');
 
 $VERSION = '0.01';
-%IRSSI = (
-    authors       => 'Yanis Guenane',
-    contact       => 'yguenane@gmail.com',
-    name          => 'diarirc',
-    descritption  => 'A Irssi plugin to feed http://www.diarirc.org',
-    license       => 'Apache V2',
-    url           => 'https://github.com/Spredzy/diariric'
-    );
+%IRSSI = ( 
+		authors       => 'Yanis Guenane',
+		contact       => 'yguenane@gmail.com',
+		name          => 'diarirc',
+		descritption  => 'A Irssi plugin to feed http://www.diarirc.org',
+		license       => 'Apache V2',
+		url           => 'https://github.com/Spredzy/diariric'
+		);
 
-my $ES = ElasticSearch->new();
+my $ES = ElasticSearch->new(
+		servers => '192.168.1.197:9200'
+	);
+
+sub index_message {
+	my ($node, $chan, $nick, $msg) = @_;
 
 
+	my $category = $chan =~ tr/#//;
+	$chan =~ s/^#*//g;
+	my $day = strftime "%Y.%m.%d", localtime;
+	my $datetime = strftime "%Y-%m-%d %H:%M:%S", localtime;
+
+	my $msg_obj = {
+		'chan' => $chan,
+		'node' => $node,
+		'nick' => $nick,
+		'category' => $category,
+		'message' => $msg,
+		'index_name' => "$node-$category-$chan.$day",
+		'datetime' => $datetime,
+	};
+
+	my $res = $ES->index(
+			index => $msg_obj->{'index_name'},
+			type  => 'message',
+			data  => {
+			chan => $msg_obj->{'chan'},
+			category => $msg_obj->{'category'},
+			node => $msg_obj->{'node'},
+			nick => $msg_obj->{'nick'},
+			message => $msg_obj->{'message'},
+			date => $msg_obj->{'datetime'},
+			},
+			);
+}
+
+sub index_connection {
+	my ($node, $chan, $nick, $action, $reason, $kicker) = @_;
+
+
+	my $category = $chan =~ tr/#//;
+	$chan =~ s/^#*//g;
+	my $day = strftime "%Y.%m.%d", localtime;
+	my $datetime = strftime "%Y-%m-%d %H:%M:%S", localtime;
+
+	my $msg_obj = {
+		'chan' => $chan,
+		'node' => $node,
+		'nick' => $nick,
+		'category' => $category,
+		'action' => $action,
+		'reason' => $reason,
+		'index_name' => "$node-$category-$chan.$day",
+		'datetime' => $datetime,
+	};
+
+	print Dumper($msg_obj);
+
+	my $res = $ES->index(
+			index => $msg_obj->{'index_name'},
+			type  => 'connection',
+			data  => {
+			action => $msg_obj->{'action'},
+			reason => $msg_obj->{'reason'},
+			category => $msg_obj->{'category'},
+			chan => $msg_obj->{'chan'},
+			node => $msg_obj->{'node'},
+			nick => $msg_obj->{'nick'},
+			date => $msg_obj->{'datetime'},
+			},
+			);
+}
+
+#
+# message
+#
 sub on_public {
-  my ($server, $msg, $nick, $addr, $target) = @_;
+	my ($server, $msg, $nick, $addr, $target) = @_;
 
-  $target =~ s/^#*//g;
-  my $day = strftime "%Y.%m.%d", localtime;
-  my $datetime = strftime "%Y-%m-%d %H:%M:%S", localtime;
-
-  my $msg_obj = {
-    'chan' => $target,
-    'node' => $server->{'tag'},
-    'nick' => $nick,
-    'message' => $msg,
-    'index_name' => "$server->{'tag'}-$target.$day",
-    'datetime' => $datetime,
-  };
-
-  my $res = $ES->index(
-      index => $msg_obj->{'index_name'},
-      type  => 'message',
-      data  => {
-      nick => $msg_obj->{'nick'},
-      message => $msg_obj->{'message'},
-      post_date => $msg_obj->{'datetime'},
-      },
-    );
+	index_message($server->{'tag'}, $target, $nick, $msg);
 }
 
 sub own_public {
-  my ($server, $msg, $target) = @_;
+	my ($server, $msg, $target) = @_;
 
-  $target =~ s/^#*//g;
-  my $day = strftime "%Y.%m.%d", localtime;
-  my %msg_obj = (
-    'chan' => $target,
-    'node' => $server->{'tag'},
-    'nick' => $server->{'nick'},
-    'message' => $msg,
-    'index_name' => "$server->{'tag'}-$target.$day",
-    'datetime' => scalar localtime,
-  );
+	index_message($server->{'tag'}, $target, $server->{'nick'}, $msg);
 }
 
+#
+# connection
+#
+
+sub on_join {
+	my ($server, $channel, $nick, $addr, $reason) = @_;
+
+	index_connection($server->{'tag'}, $channel, $nick, 'join', $reason, '');
+}
+sub on_part {
+	my ($server, $channel, $nick, $addr, $reason) = @_;
+
+	index_connection($server->{'tag'}, $channel, $nick, 'part', $reason, '');
+}
+
+
+#
+#
+#
+sub on_quit {
+	my ($server, $channel, $nick, $addr, $reason) = @_;
+
+	index_connection($server->{'tag'}, $channel, $nick, 'quit', $reason, '');
+}
+sub on_kick {
+	my ($server, $channel, $nick, $kicker, $addr, $reason) = @_;
+
+	index_connection($server->{'tag'}, $channel, $nick, 'kick', $reason, $kicker);
+}
+
+
+#
+#
+#
+
+sub on_connection {
+	my $server = @_;
+
+	threads->create(sub {
+			while(1) {
+				sleep(10);
+				open MYFILE, '>>/tmp/totototo.txt';
+				print MYFILE scalar localtime;
+				close MYFILE;
+			}
+	})->detach();
+
+}
+
+#
+# message
+#
 Irssi::signal_add("message public", "on_public");
 Irssi::signal_add("message own_public", "own_public");
+
+#
+# connection
+#
+Irssi::signal_add("message join", "on_join");
+Irssi::signal_add("message part", "on_part");
+#Irssi::signal_add("message quit", "on_quit");
+#Irssi::signal_add("message kick", "on_kick");
+
+#
+# New Chan asked
+#
+#Irssi::signal_add("server connected", "on_connection");
+
+
+
+
+

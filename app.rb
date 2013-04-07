@@ -17,13 +17,13 @@ post '/chan' do
 
   chann = Channel.new(params[:chan])
   diarirc.add chann if !diarirc.include? chann
-  redirect "/chan/#{chann.server}/#{chann.name}"
+  redirect "/chan/#{chann.server}/#{chann.category}/#{chann.name}"
 
 end
 
-get '/chan/:server/:chan' do
+get '/chan/:server/:category/:chan' do
 
-  channel = diarirc.find(params[:server], params[:chan])
+  channel = diarirc.find(params[:server], params[:category], params[:chan])
 
   if channel.is_a? Channel
     erb :chan, :locals => {:channel => channel}
@@ -33,8 +33,32 @@ get '/chan/:server/:chan' do
 
 end
 
+get '/chan/:server/:category/:chan/log' do
+
+  channel = diarirc.find(params[:server], params[:category], params[:chan])
+
+  if channel.is_a? Channel
+    erb :logs, :locals => {:channel => channel}
+  else
+    redirect '/'
+  end
+
+end
+
 get '/list/chan' do
 
   erb :list_chan, :locals => {:channels => diarirc.channels}
+
+end
+
+get '/list/chan/:server' do
+
+  erb :list_chan, :locals => {:channels => diarirc.server(params[:server])}
+
+end
+
+get '/list/chan/:server/:category' do
+
+  erb :list_chan, :locals => {:channels => diarirc.category(params[:server], params[:category])}
 
 end
